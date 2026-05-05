@@ -1,1 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FireGuard TX — Sprinkler Estimator</title>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,300;1,700&family=Barlow+Condensed:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   FIREGUARD TX — DESIGN SYSTEM
+   Aesthetic: Industrial / High-Stakes / Cinematic
+   Color: Scorched metal, molten orange, ash white
+   ============================================================ */
+:root {
+  --black:    #080808;
+  --void:     #0a0a0a;
+  --deep:     #111111;
+  --panel:    #161616;
+  --surface:  #1e1e1e;
+  --raised:   #252525;
+  --border:   #2a2a2a;
+  --steel:    #383838;
+  --muted:    #666;
+  --dim:      #888;
+  --ash:      #bbb;
+  --white:    #f0ede8;
+  --fire:     #ff4e00;
+  --fire2:    #ff6a1a;
+  --ember:    #ff9040;
+  --gold:     #ffb830;
+  --heat:     #ff2200;
+  --green:    #39d47a;
+  --yellow:   #ffd060;
+  --red:      #ff4444;
+  --blue:     #4da6ff;
+  --radius:   6px;
+  --radius-lg: 10px;
+}
 
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  background: var(--void);
+  color: var(--white);
+  font-family: 'Barlow', sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* ── Custom Cursor ── */
+#cursor, #cursor-trail {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: difference;
+}
+#cursor {
+  width: 10px; height: 10px;
+  background: var(--fire);
+  top: -5px; left: -5px;
+  transition: transform .12s ease, background .2s;
+}
+#cursor-trail {
+  width: 32px; height: 32px;
+  border: 1.5px solid rgba(255,78,0,.4);
+  top: -16px; left: -16px;
+  transition: transform .25s ease;
+}
+body:has(button:hover) #cursor,
+body:has(a:hover) #cursor { transform: scale(2.5); background: var(--ember); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--fire); border-radius: 999px; }
+
+/* ── Noise texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── LOADER ── */
+#loader {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--black);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  transition: opacity .8s ease, visibility .8s ease;
+}
+#loader.out { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.loader-ring-wrap {
+  position: relative;
+  width: 120px; height: 120px;
+  margin-bottom: 40px;
+}
+.loader-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  animation: spin 2s linear infinite;
+}
+.loader-ring:nth-child(1) {
+  border-top-color: var(--fire);
+  border-right-color: rgba(255,78,0,.2);
+  animation-duration: 1.4s;
+}
+.loader-ring:nth-child(2) {
+  inset: 14px;
+  border-bottom-color: var(--ember);
+  border-left-color: rgba(255,144,64,.15);
+  animation-duration: 1s;
+  animation-direction: reverse;
+}
+.loader-ring:nth-child(3) {
+  inset: 28px;
+  border-top-color: var(--gold);
+  border-right-color: rgba(255,184,48,.1);
+  animation-duration: 1.8s;
+}
+.loader-core {
+  position: absolute;
+  inset: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fire) 0%, var(--heat) 60%, transparent 100%);
+  animation: pulse-core 1.2s ease-in-out infinite alternate;
+}
+@keyframes pulse-core {
+  from { opacity: .7; transform: scale(.85); }
+  to   { opacity: 1;  transform: scale(1.05); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loader-wordmark {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4.5rem;
+  letter-spacing: .12em;
+  color: var(--white);
+  line-height: 1;
+  position: relative;
+}
+.loader-wordmark span { color: var(--fire); }
+.loader-sub {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .3em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-top: 6px;
+  margin-bottom: 40px;
+}
+.loader-bar-track {
+  width: 280px; height: 2px;
+  background: var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.loader-bar-fill {
+  position: absolute;
+  left: -100%; top: 0; bottom: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, var(--fire), var(--ember), transparent);
+  animation: loadbar 1.5s ease-in-out infinite;
+}
+@keyframes loadbar {
+  0%   { left: -60%; }
+  100% { left: 100%; }
+}
+.loader-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem;
+  color: var(--muted);
+  margin-top: 16px;
+  letter-spacing: .05em;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,8,8,.92);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+.header-inner {
+  max-width: 1440px; margin: 0 auto;
+  padding: 0 32px;
+  height: 64px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.logo-mark {
+  display: flex; align-items: center; gap: 14px;
+  text-decoration: none; color: inherit;
+}
+.logo-icon {
+  width: 36px; height: 36px;
+  position: relative;
+}
+.logo-icon svg { width: 100%; height: 100%; }
+.logo-text {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: .1em;
+  line-height: 1;
+}
+.logo-text em {
+  color: var(--fire);
+  font-style: normal;
+}
+.logo-sup {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .25em;
+  color: var(--muted);
+  display: block;
+  margin-top: 1px;
+}
+.nav-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: none; cursor: none;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: .9rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  transition: all .18s ease;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,.06);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.btn:hover::after { opacity: 1; }
+
+.btn-sm  { height: 34px; padding: 0 16px; border-radius: var(--radius); font-size: .8rem; }
+.btn-md  { height: 42px; padding: 0 22px; border-radius: var(--radius); }
+.btn-lg  { height: 52px; padding: 0 28px; border-radius: var(--radius-lg); font-size: 1rem; }
+.btn-xl  { height: 60px; padding: 0 36px; border-radius: var(--radius-lg); font-size: 1.05rem; }
+
+.btn-fire {
+  background: var(--fire);
+  color: #fff;
+  box-shadow: 0 0 24px rgba(255,78,0,.3);
+}
+.btn-fire:hover {
+  background: var(--fire2);
+  box-shadow: 0 0 40px rgba(255,78,0,.5);
+  transform: translateY(-1px);
+}
+.btn-outline {
+  background: transparent;
+  color: var(--ash);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  border-color: var(--steel);
+  color: var(--white);
+  transform: translateY(-1px);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--dim);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover { color: var(--ash); border-color: var(--border); }
+.btn-green {
+  background: rgba(57,212,122,.15);
+  color: var(--green);
+  border: 1px solid rgba(57,212,122,.3);
+}
+.btn-green:hover { background: rgba(57,212,122,.25); transform: translateY(-1px); }
+.btn-steel {
+  background: var(--raised);
+  color: var(--ash);
+  border: 1px solid var(--border);
+}
+.btn-steel:hover { background: var(--surface); border-color: var(--steel); }
+
+/* ── HERO ── */
+.hero {
+  max-width: 1440px; margin: 0 auto;
+  padding: 100px 32px 80px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-bg-text {
+  position: absolute;
+  top: -20px; left: -10px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22vw;
+  color: rgba(255,78,0,.03);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: -.02em;
+}
+.hero-eyebrow {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .3em;
+  color: var(--fire);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.hero-eyebrow::before {
+  content: '';
+  width: 32px; height: 1px;
+  background: var(--fire);
+  display: block;
+}
+.hero-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3.5rem, 9vw, 8.5rem);
+  line-height: .92;
+  letter-spacing: .03em;
+  color: var(--white);
+  position: relative;
+  z-index: 1;
+}
+.hero-title .fire-word {
+  color: var(--fire);
+  -webkit-text-stroke: 1px var(--fire);
+  text-shadow: 0 0 80px rgba(255,78,0,.4);
+}
+.hero-title .outline-word {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(240,237,232,.25);
+}
+.hero-desc {
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: var(--dim);
+  max-width: 520px;
+  margin-top: 28px;
+  line-height: 1.7;
+  position: relative; z-index: 1;
+}
+.hero-desc strong { color: var(--ash); font-weight: 600; }
+.hero-ctas {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-top: 44px;
+  position: relative; z-index: 1;
+}
+.hero-divider {
+  color: var(--border);
+  font-size: .8rem;
+  display: flex; align-items: center;
+}
+
+/* Hero stats bar */
+.stats-bar {
+  max-width: 1440px; margin: 0 auto;
+  padding: 0 32px 60px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stat-cell {
+  background: var(--deep);
+  padding: 28px 24px;
+  transition: background .2s;
+}
+.stat-cell:hover { background: var(--panel); }
+.stat-num {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: var(--fire2);
+  line-height: 1;
+  transition: color .3s;
+}
+.stat-label {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* ── SECTION ── */
+.section {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 60px 32px;
+}
+.section-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--fire);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-label::before { content: ''; width: 20px; height: 1px; background: var(--fire); }
+.section-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.8rem;
+  letter-spacing: .06em;
+  color: var(--white);
+  line-height: 1.05;
+}
+
+/* ── ACTION CARDS ── */
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 32px;
+}
+@media(max-width:720px){ .action-grid { grid-template-columns: 1fr; } }
+.action-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  cursor: none;
+  transition: all .25s ease;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+}
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--fire), transparent);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.action-card:hover {
+  border-color: rgba(255,78,0,.3);
+  background: var(--surface);
+  transform: translateY(-3px);
+  box-shadow: 0 24px 60px rgba(255,78,0,.08), 0 0 0 1px rgba(255,78,0,.12);
+}
+.action-card:hover::before { opacity: 1; }
+.action-card-num {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .3em;
+  color: var(--fire);
+  margin-bottom: 20px;
+}
+.action-card-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  letter-spacing: .06em;
+  line-height: 1;
+  margin-bottom: 12px;
+  color: var(--white);
+}
+.action-card-desc {
+  font-size: .9rem;
+  font-weight: 300;
+  color: var(--dim);
+  line-height: 1.65;
+}
+.action-card-arrow {
+  margin-top: 28px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+  color: var(--fire);
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+  transition: gap .2s;
+}
+.action-card:hover .action-card-arrow { gap: 14px; }
+
+/* ── SAVED LIST ── */
+.saved-list-section {
+  max-width: 1440px; margin: 0 auto;
+  padding: 0 32px 80px;
+}
+.saved-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.saved-table-header {
+  display: grid;
+  grid-template-columns: 1fr 140px 120px 120px 80px;
+  padding: 14px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  gap: 16px;
+}
+.saved-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 120px 120px 80px;
+  padding: 18px 24px;
+  background: var(--deep);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 16px;
+  transition: background .15s;
+}
+.saved-row:last-child { border-bottom: none; }
+.saved-row:hover { background: var(--panel); }
+.saved-name { font-weight: 600; color: var(--white); font-size: .95rem; }
+.saved-meta { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.saved-tag {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255,78,0,.1);
+  color: var(--fire2);
+  border: 1px solid rgba(255,78,0,.2);
+  width: fit-content;
+}
+.saved-val {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--white);
+}
+
+/* ── OVERLAY / MODAL ── */
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.85);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.modal {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: min(1400px, 100%);
+  box-shadow: 0 40px 120px rgba(0,0,0,.8);
+  margin: auto;
+  transform: translateY(20px);
+  transition: transform .3s ease;
+}
+.overlay.open .modal { transform: translateY(0); }
+.modal-sm { width: min(760px, 100%); }
+.modal-head {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--panel);
+  border-radius: 12px 12px 0 0;
+  position: sticky; top: 0; z-index: 10;
+}
+.modal-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: .08em;
+  color: var(--white);
+  line-height: 1;
+}
+.modal-subtitle {
+  font-size: .8rem;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 400;
+}
+.modal-body { padding: 28px 32px; }
+.modal-cols {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: 24px;
+}
+@media(max-width:1024px){ .modal-cols { grid-template-columns: 1fr; } }
+
+/* ── FORM ELEMENTS ── */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.inp, .sel, .ta {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--white);
+  font-family: 'Barlow', sans-serif;
+  font-size: .95rem;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  width: 100%;
+  cursor: none;
+}
+.inp:focus, .sel:focus, .ta:focus {
+  border-color: var(--fire);
+  box-shadow: 0 0 0 3px rgba(255,78,0,.12);
+}
+.inp::placeholder { color: var(--steel); }
+.inp.mono { font-family: 'JetBrains Mono', monospace; font-size: .9rem; }
+.inp.large {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--fire2);
+}
+.sel option { background: var(--panel); }
+
+/* Checkboxes */
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.check-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: none;
+  transition: all .15s;
+  font-size: .9rem;
+  font-weight: 500;
+}
+.check-item:hover { border-color: var(--steel); background: var(--surface); }
+.check-item:has(input:checked) {
+  border-color: rgba(255,78,0,.4);
+  background: rgba(255,78,0,.07);
+}
+.check-item input {
+  width: 16px; height: 16px;
+  accent-color: var(--fire);
+  cursor: none;
+  flex-shrink: 0;
+}
+.check-item .check-label { flex: 1; line-height: 1.3; }
+.check-item .check-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+/* ── GRID HELPERS ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+@media(max-width: 860px) { .g2, .g3, .g4 { grid-template-columns: 1fr 1fr; } }
+@media(max-width: 560px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+
+/* ── SECTION BLOCKS inside modal ── */
+.block {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+}
+.block-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ── COST BREAKDOWN ── */
+.cost-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color .15s;
+}
+.cost-row:hover { border-color: var(--steel); }
+.cost-row.total {
+  background: rgba(255,78,0,.08);
+  border-color: rgba(255,78,0,.3);
+  box-shadow: 0 0 0 1px rgba(255,78,0,.1);
+}
+.cost-label { font-size: .9rem; font-weight: 600; color: var(--ash); }
+.cost-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.cost-value {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--white);
+  white-space: nowrap;
+}
+.cost-row.total .cost-value {
+  font-size: 1.6rem;
+  color: var(--fire2);
+}
+
+/* ── BADGE ── */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.badge-fire { background: rgba(255,78,0,.15); color: var(--fire2); border: 1px solid rgba(255,78,0,.25); }
+.badge-green { background: rgba(57,212,122,.12); color: var(--green); border: 1px solid rgba(57,212,122,.25); }
+.badge-yellow { background: rgba(255,208,96,.1); color: var(--yellow); border: 1px solid rgba(255,208,96,.2); }
+.badge-red { background: rgba(255,68,68,.12); color: var(--red); border: 1px solid rgba(255,68,68,.25); }
+.badge-blue { background: rgba(77,166,255,.1); color: var(--blue); border: 1px solid rgba(77,166,255,.2); }
+.badge-steel { background: var(--raised); color: var(--dim); border: 1px solid var(--border); }
+
+/* ── ANALYZER ── */
+.dropzone {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 60px 32px;
+  text-align: center;
+  cursor: none;
+  transition: all .2s;
+  position: relative;
+  overflow: hidden;
+}
+.dropzone::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255,78,0,.04) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.dropzone:hover, .dropzone.drag-over {
+  border-color: rgba(255,78,0,.4);
+  background: rgba(255,78,0,.04);
+}
+.dropzone:hover::before, .dropzone.drag-over::before { opacity: 1; }
+.dropzone-icon {
+  font-size: 3rem; margin-bottom: 12px;
+  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.dropzone-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: .06em;
+  color: var(--white);
+  margin-bottom: 6px;
+}
+.dropzone-sub { font-size: .85rem; color: var(--muted); margin-bottom: 20px; }
+
+/* Progress */
+.prog-track { height: 2px; background: var(--surface); border-radius: 999px; overflow: hidden; position: relative; }
+.prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--fire), var(--ember));
+  border-radius: 999px;
+  transition: width .4s ease;
+  position: relative;
+}
+.prog-fill::after {
+  content: '';
+  position: absolute;
+  right: 0; top: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 10px var(--ember);
+}
+.step-item {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  transition: all .2s;
+  opacity: .4;
+}
+.step-item.done { opacity: 1; background: rgba(57,212,122,.05); border: 1px solid rgba(57,212,122,.1); }
+.step-item.active { opacity: 1; background: rgba(255,78,0,.05); border: 1px solid rgba(255,78,0,.15); }
+.step-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border);
+  margin-top: 5px; flex-shrink: 0;
+  transition: all .3s;
+}
+.step-item.done .step-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.step-item.active .step-dot { background: var(--fire); box-shadow: 0 0 8px var(--fire); animation: pulse-dot 1s ease infinite; }
+@keyframes pulse-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.5); } }
+
+/* Finding rows */
+.finding-row {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: .88rem;
+}
+.finding-key {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 130px;
+}
+.finding-val { font-weight: 600; color: var(--white); text-align: right; flex: 1; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+/* ── ANIMATIONS ── */
+.fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp .5s ease forwards;
+}
+.fade-up:nth-child(1) { animation-delay: .05s; }
+.fade-up:nth-child(2) { animation-delay: .1s; }
+.fade-up:nth-child(3) { animation-delay: .15s; }
+.fade-up:nth-child(4) { animation-delay: .2s; }
+.fade-up:nth-child(5) { animation-delay: .25s; }
+@keyframes fadeUp {
+  to { opacity: 1; transform: none; }
+}
+
+/* ── TOAST ── */
+#toast-wrap {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-size: .88rem;
+  font-weight: 500;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  animation: toastIn .3s ease;
+  cursor: none;
+}
+.toast.fire { border-color: rgba(255,78,0,.4); }
+.toast.green { border-color: rgba(57,212,122,.35); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } }
+
+/* Empty state */
+.empty-state {
+  padding: 60px 24px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+.empty-state-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  color: var(--steel);
+  letter-spacing: .08em;
+  margin-bottom: 8px;
+}
+.empty-state-sub { font-size: .88rem; color: var(--muted); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px;
+  text-align: center;
+  font-size: .8rem;
+  color: var(--muted);
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+footer span { color: var(--fire); }
+
+/* ── RESPONSIVE ── */
+@media(max-width: 768px) {
+  .header-inner { padding: 0 16px; }
+  .hero { padding: 60px 16px 40px; }
+  .stats-bar { grid-template-columns: 1fr 1fr; }
+  .section, .saved-list-section { padding-left: 16px; padding-right: 16px; }
+  .modal-head, .modal-body { padding-left: 20px; padding-right: 20px; }
+  .saved-table-header, .saved-row { display: none; }
+  .saved-row { display: flex; flex-direction: column; gap: 6px; padding: 16px; }
+}
+@media(min-width: 768px) {
+  .saved-row { display: grid; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── CUSTOM CURSOR ── -->
+<div id="cursor"></div>
+<div id="cursor-trail"></div>
+
+<!-- ── LOADER ── -->
+<div id="loader">
+  <div class="loader-ring-wrap">
+    <div class="loader-ring"></div>
+    <div class="loader-ring"></div>
+    <div class="loader-ring"></div>
+    <div class="loader-core"></div>
+  </div>
+  <div class="loader-wordmark">FIRE<span>GUARD</span> TX</div>
+  <div class="loader-sub">Fire Sprinkler Estimator &amp; Plan Analyzer</div>
+  <div class="loader-bar-track"><div class="loader-bar-fill"></div></div>
+  <div class="loader-status" id="loaderStatus">Initializing workspace…</div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast-wrap"></div>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-inner">
+    <div class="logo-mark">
+      <div class="logo-icon">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 3C14 10 8 14 8 22C8 29.7 12.5 33 18 33C23.5 33 28 29.7 28 22C28 14 22 10 18 3Z" fill="#ff4e00" opacity=".9"/>
+          <path d="M18 12C16 16 13 18.5 13 23C13 26.3 15.2 28 18 28C20.8 28 23 26.3 23 23C23 18.5 20 16 18 12Z" fill="#ff9040"/>
+          <path d="M18 20C17 21.8 15.5 22.8 15.5 24.5C15.5 26 16.6 27 18 27C19.4 27 20.5 26 20.5 24.5C20.5 22.8 19 21.8 18 20Z" fill="#ffb830"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">FIRE<em>GUARD</em> TX</div>
+        <span class="logo-sup">Sprinkler Estimator · Texas</span>
+      </div>
+    </div>
+    <nav class="nav-actions">
+      <button class="btn btn-ghost btn-sm" onclick="openSaved()">Saved Estimates</button>
+      <button class="btn btn-outline btn-sm" onclick="openAnalyzer()">AI Plan Analyzer</button>
+      <button class="btn btn-fire btn-sm" onclick="openEstimate()">⚡ Quick Estimate</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-bg-text">FIRE</div>
+  <div class="hero-eyebrow fade-up">Professional Fire Protection Tools · Texas</div>
+  <h1 class="hero-title fade-up">
+    ESTIMATE<br>
+    <span class="fire-word">ANY</span> PROJECT<br>
+    <span class="outline-word">IN MINUTES</span>
+  </h1>
+  <p class="hero-desc fade-up">
+    Calculate <strong>material, labor, design, and total project costs</strong> using industry-standard formulas. Dallas and outside-Dallas pricing logic built in. Upload fire plans for <strong>AI-powered analysis</strong>.
+  </p>
+  <div class="hero-ctas fade-up">
+    <button class="btn btn-fire btn-xl" onclick="openEstimate()">⚡ Quick Estimate</button>
+    <button class="btn btn-outline btn-lg" onclick="openAnalyzer()">Upload Plans →</button>
+  </div>
+</section>
+
+<!-- ── STATS ── -->
+<div class="stats-bar">
+  <div class="stat-cell fade-up">
+    <div class="stat-num" id="statProjects">0</div>
+    <div class="stat-label">Projects</div>
+  </div>
+  <div class="stat-cell fade-up">
+    <div class="stat-num" id="statHeads">0</div>
+    <div class="stat-label">Total Heads</div>
+  </div>
+  <div class="stat-cell fade-up">
+    <div class="stat-num" id="statVolume">$0</div>
+    <div class="stat-label">Est. Volume</div>
+  </div>
+  <div class="stat-cell fade-up">
+    <div class="stat-num" id="statLast">—</div>
+    <div class="stat-label">Last Project</div>
+  </div>
+  <div class="stat-cell fade-up">
+    <div class="stat-num" style="font-size:1.4rem">DAL / TX</div>
+    <div class="stat-label">Pricing Logic ✓</div>
+  </div>
+</div>
+
+<!-- ── TOOLS SECTION ── -->
+<section class="section">
+  <div class="section-label">Core Tools</div>
+  <div class="section-title">WHAT DO YOU NEED?</div>
+  <div class="action-grid">
+    <button class="action-card" onclick="openEstimate()">
+      <div class="action-card-num">01 / ESTIMATE</div>
+      <div class="action-card-title">Quick Estimate<br>Calculator</div>
+      <div class="action-card-desc">Input project name, sq footage by floor, address, system type, and misc systems. Live math with Dallas/outside-Dallas/dry rates, tax, 20% profit, and full PDF export.</div>
+      <div class="action-card-arrow">Open Calculator <span>→</span></div>
+    </button>
+    <button class="action-card" onclick="openAnalyzer()">
+      <div class="action-card-num">02 / AI ANALYSIS</div>
+      <div class="action-card-title">AI Fire Plan<br>Analyzer</div>
+      <div class="action-card-desc">Upload fire protection plans (PDF or images). Gemini Vision AI reads square footage, detects head counts, identifies wet/dry indicators, fire pumps, backflows, and more.</div>
+      <div class="action-card-arrow">Upload Plans <span>→</span></div>
+    </button>
+  </div>
+</section>
+
+<!-- ── SAVED LIST ── -->
+<div class="saved-list-section">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <div class="section-label">History</div>
+      <div class="section-title" style="font-size:2rem">RECENT ESTIMATES</div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="openSaved()">View All</button>
+  </div>
+  <div id="projectsArea"></div>
+</div>
+
+<footer>
+  <span>FireGuard TX</span> · Fire Sprinkler Project Estimator · Texas · All calculations are estimates only
+</footer>
+
+
+<!-- ============================================================
+     ESTIMATE MODAL
+     ============================================================ -->
+<div class="overlay" id="estimateOverlay" onclick="if(event.target===this)closeEstimate()">
+  <div class="modal fade-up">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">⚡ QUICK ESTIMATE</div>
+        <div class="modal-subtitle">Live formulas · Dallas pricing logic · Tax &amp; profit · PDF export</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green btn-sm" onclick="saveCurrentEstimate()">💾 Save</button>
+        <button class="btn btn-fire btn-sm" onclick="showPdfMeta()">🖨️ Print PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeEstimate()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-cols">
+
+        <!-- LEFT -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Project Info -->
+          <div class="block">
+            <div class="block-title">Project Information</div>
+            <div class="g2" style="margin-bottom:14px">
+              <div class="field"><div class="field-label">Project Name</div><input class="inp" id="projectName" placeholder="North Dallas Office Complex"></div>
+              <div class="field"><div class="field-label">Address / City, State</div><input class="inp" id="projectAddress" placeholder="Dallas, TX" oninput="recalc()"></div>
+            </div>
+            <div class="g2" style="margin-bottom:14px">
+              <div class="field">
+                <div class="field-label">Project Type</div>
+                <select class="sel" id="projectType" onchange="recalc()">
+                  <option value="new">New Construction / Ground Up</option>
+                  <option value="existing">Existing Construction / Renovation</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-label">Building Type</div>
+                <select class="sel" id="buildingType">
+                  <option>Retail / Commercial</option>
+                  <option>Office</option>
+                  <option>Warehouse / Industrial</option>
+                  <option>School / Education</option>
+                  <option>Medical / Healthcare</option>
+                  <option>Restaurant / Food Service</option>
+                  <option>Multifamily / Apartments</option>
+                  <option>Hotel / Hospitality</option>
+                  <option>Mixed Use</option>
+                  <option>Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="g2">
+              <div class="field">
+                <div class="field-label">System Type</div>
+                <select class="sel" id="systemType" onchange="recalc()">
+                  <option value="wet">Wet System</option>
+                  <option value="dry">Dry System</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="field-label">Number of Floors</div>
+                <input class="inp" id="numFloors" type="number" min="1" value="1" oninput="initFloors()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Floors -->
+          <div class="block">
+            <div class="block-title">Floor Breakdown</div>
+            <div id="floorsWrap" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
+            <div class="divider"></div>
+            <div class="g2">
+              <div class="field">
+                <div class="field-label">Total Sq Ft (auto-calc)</div>
+                <input class="inp large" id="totalSqFt" type="number" value="0" oninput="recalc()">
+              </div>
+              <div class="field">
+                <div class="field-label">Sprinkler Heads (auto)</div>
+                <input class="inp large mono" id="sprinklerHeads" type="number" step="0.01" value="0" readonly style="color:var(--fire2)">
+              </div>
+            </div>
+          </div>
+
+          <!-- Misc Options -->
+          <div class="block">
+            <div class="block-title">System Add-ons &amp; Options</div>
+            <div class="check-grid">
+              <label class="check-item">
+                <input type="checkbox" id="hasBackflow" onchange="recalc()">
+                <div class="check-label">Backflow Prevention<br><span style="font-size:.75rem;color:var(--muted)">Required by code in many areas</span></div>
+                <span class="check-price">+$5k</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" id="hasFirePump" onchange="recalc()">
+                <div class="check-label">Fire Pump<br><span style="font-size:.75rem;color:var(--muted)">High-rise or pressure-required</span></div>
+                <span class="check-price">+$10k</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" id="hasDryAddon" onchange="recalc()">
+                <div class="check-label">Dry System Add-on<br><span style="font-size:.75rem;color:var(--muted)">Freezer/attic zones</span></div>
+                <span class="check-price">+$14k</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" id="taxExempt" onchange="recalc()">
+                <div class="check-label">Tax Exempt<br><span style="font-size:.75rem;color:var(--muted)">Government / non-profit</span></div>
+                <span class="check-price">−8.25%</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Notes + Save -->
+          <div class="block">
+            <div class="block-title">Notes &amp; Save</div>
+            <textarea class="ta" id="notes" rows="3" placeholder="Assumptions, scope notes, GC info…" style="margin-bottom:12px"></textarea>
+            <div class="g2" style="margin-bottom:12px">
+              <div class="field"><div class="field-label">Save Name</div><input class="inp" id="saveName" placeholder="Auto-uses project name"></div>
+              <div class="field"><div class="field-label">Tag</div><input class="inp" id="saveTag" placeholder="New / Existing / Reno"></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-green btn-md" style="flex:1" onclick="saveCurrentEstimate()">💾 Save Estimate</button>
+              <button class="btn btn-ghost btn-md" onclick="clearEstimate()">🗑️ New Blank</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Overrides -->
+          <div class="block">
+            <div class="block-title">Manual Overrides <span class="badge badge-steel">Optional</span></div>
+            <div class="g2">
+              <div class="field"><div class="field-label">SH Override</div><input class="inp mono" id="overrideSh" type="number" step="0.01" placeholder="Auto" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Material $</div><input class="inp mono" id="overrideMaterial" type="number" placeholder="Auto" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Labor $</div><input class="inp mono" id="overrideLabor" type="number" placeholder="Auto" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Design $</div><input class="inp mono" id="overrideDesign" type="number" placeholder="Auto" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Misc $</div><input class="inp mono" id="overrideMisc" type="number" placeholder="Auto" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Profit %</div><input class="inp mono" id="overrideProfitPct" type="number" step="0.01" value="20" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Tax Rate %</div><input class="inp mono" id="overrideTaxRate" type="number" step="0.01" value="8.25" oninput="recalc()"></div>
+              <div class="field"><div class="field-label">Rounding</div>
+                <select class="sel" id="roundingMethod" onchange="recalc()">
+                  <option value="round">Round</option>
+                  <option value="ceil">Round Up</option>
+                  <option value="none">Exact</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Breakdown -->
+          <div class="block">
+            <div class="block-title">
+              Live Cost Breakdown
+              <span class="badge badge-fire" id="locationBadge">📍 Unknown</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="cost-row"><div><div class="cost-label">Material</div><div class="cost-formula" id="materialFormula">—</div></div><div class="cost-value" id="materialVal">$0</div></div>
+              <div class="cost-row"><div><div class="cost-label">Labor</div><div class="cost-formula" id="laborFormula">—</div></div><div class="cost-value" id="laborVal">$0</div></div>
+              <div class="cost-row"><div><div class="cost-label">Design</div><div class="cost-formula" id="designFormula">—</div></div><div class="cost-value" id="designVal">$0</div></div>
+              <div class="cost-row"><div><div class="cost-label">Misc</div><div class="cost-formula" id="miscFormula">—</div></div><div class="cost-value" id="miscVal">$0</div></div>
+              <div class="cost-row" style="opacity:.6"><div><div class="cost-label" style="color:var(--muted)">Subtotal #1</div><div class="cost-formula">Material + Labor + Design + Misc</div></div><div class="cost-value" id="subtotalVal" style="color:var(--dim)">$0</div></div>
+              <div class="cost-row"><div><div class="cost-label">Taxes</div><div class="cost-formula" id="taxFormula">—</div></div><div class="cost-value" id="taxVal">$0</div></div>
+              <div class="cost-row"><div><div class="cost-label">Our Profit</div><div class="cost-formula" id="profitFormula">—</div></div><div class="cost-value" id="profitVal">$0</div></div>
+              <div class="cost-row total">
+                <div><div class="cost-label" style="color:var(--white);font-size:1rem;font-weight:800">FINAL TOTAL</div><div class="cost-formula" id="finalFormula">—</div></div>
+                <div class="cost-value" id="finalVal">$0</div>
+              </div>
+            </div>
+            <div style="margin-top:14px">
+              <button class="btn btn-fire btn-lg" style="width:100%" onclick="showPdfMeta()">🖨️ Print PDF Report</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     ANALYZER MODAL
+     ============================================================ -->
+<div class="overlay" id="analyzerOverlay" onclick="if(event.target===this)closeAnalyzer()">
+  <div class="modal fade-up">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">🤖 AI PLAN ANALYZER</div>
+        <div class="modal-subtitle">Powered by Google Gemini Vision · Upload fire protection plans · Key stored securely in Cloudflare Worker</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeAnalyzer()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-cols">
+
+        <!-- LEFT -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Worker URL config -->
+          <div class="block" style="border-color:rgba(255,78,0,.3);background:rgba(255,78,0,.05)">
+            <div class="block-title" style="color:var(--fire2)">⚙️ Worker URL Configuration</div>
+            <div class="field" style="margin-bottom:10px">
+              <div class="field-label">Cloudflare Worker URL</div>
+              <input class="inp mono" id="workerUrl" placeholder="https://fireguard-tx-api.YOUR.workers.dev" oninput="saveWorkerUrl()">
+            </div>
+            <div style="font-size:.78rem;color:var(--dim);line-height:1.6">
+              Set your Worker URL above. Deploy the worker with <code style="background:var(--raised);padding:2px 6px;border-radius:4px;color:var(--fire2)">wrangler deploy</code> then run <code style="background:var(--raised);padding:2px 6px;border-radius:4px;color:var(--fire2)">wrangler secret put GEMINI_API_KEY</code> to store your key securely. See README for full instructions.
+            </div>
+          </div>
+
+          <!-- Project info for analyzer -->
+          <div class="block">
+            <div class="block-title">Project Details (optional)</div>
+            <div class="g2">
+              <div class="field"><div class="field-label">Project Name</div><input class="inp" id="analyzerProjectName" placeholder="Frisco Medical Center"></div>
+              <div class="field">
+                <div class="field-label">Project Type</div>
+                <select class="sel" id="analyzerProjectType">
+                  <option value="new">New Construction / Ground Up</option>
+                  <option value="existing">Existing Construction / Renovation</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Drop Zone -->
+          <div class="dropzone" id="dropzone"
+               onclick="document.getElementById('planFiles').click()"
+               ondrop="handleDrop(event)"
+               ondragover="handleDragOver(event)"
+               ondragleave="handleDragLeave(event)">
+            <span class="dropzone-icon">📋</span>
+            <div class="dropzone-title">DROP PLANS HERE</div>
+            <div class="dropzone-sub">PDF, JPG, or PNG · Multiple files supported</div>
+            <input type="file" id="planFiles" multiple accept=".pdf,.png,.jpg,.jpeg" style="display:none" onchange="handleFiles(this.files)">
+            <button class="btn btn-fire btn-md" onclick="event.stopPropagation();document.getElementById('planFiles').click()">Choose Files</button>
+          </div>
+
+          <!-- File list -->
+          <div id="fileListBlock" style="display:none" class="block">
+            <div class="block-title">Uploaded Files</div>
+            <div id="fileItems" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-fire btn-md" style="flex:1" onclick="runAnalysis()">🔍 Analyze Plans</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearFiles()">Clear</button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div id="analysisPanel" style="display:none" class="block">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-family:'Barlow Condensed';font-weight:700;font-size:.9rem;letter-spacing:.1em;text-transform:uppercase">Analysis Progress</div>
+              <span class="badge badge-yellow" id="analysisStatus">Running…</span>
+            </div>
+            <div class="prog-track" style="margin-bottom:16px"><div class="prog-fill" id="analysisBar" style="width:0%"></div></div>
+            <div id="analysisSteps" style="display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Confidence Legend -->
+          <div class="block">
+            <div class="block-title">Confidence Legend</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:.85rem">
+              <div style="display:flex;align-items:center;gap:10px"><span class="badge badge-green">High</span> Explicitly listed on title block or schedule</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="badge badge-yellow">Medium</span> Inferred from notes or partial evidence</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="badge badge-red">Low</span> Estimated from limited or ambiguous data</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="badge badge-blue">Confirmed</span> Manually approved by estimator</div>
+            </div>
+          </div>
+
+          <!-- Results -->
+          <div id="analysisResult" style="display:none" class="block">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <div style="font-family:'Barlow Condensed';font-weight:700;font-size:.9rem;letter-spacing:.1em;text-transform:uppercase">Project Findings</div>
+              <span class="badge badge-green">Complete</span>
+            </div>
+            <div id="findingsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+            <div class="divider"></div>
+            <div style="font-family:'Barlow Condensed';font-weight:700;font-size:.9rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">Auto-Generated Estimate</div>
+            <div id="autoEstimate" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-fire btn-md" style="flex:1" onclick="printAnalysisPdf()">🖨️ Print Report</button>
+              <button class="btn btn-green btn-md" style="flex:1" onclick="sendToEstimator()">→ Open in Estimator</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SAVED MODAL
+     ============================================================ -->
+<div class="overlay" id="savedOverlay" onclick="if(event.target===this)closeSaved()">
+  <div class="modal modal-sm fade-up">
+    <div class="modal-head">
+      <div class="modal-title">SAVED ESTIMATES</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeSaved()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="savedList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     PDF META MODAL
+     ============================================================ -->
+<div class="overlay" id="pdfMetaOverlay" onclick="if(event.target===this)closePdfMeta()">
+  <div class="modal modal-sm fade-up">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">PDF REPORT DETAILS</div>
+        <div class="modal-subtitle">Company info appears in the PDF header</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closePdfMeta()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="g2">
+        <div class="field"><div class="field-label">Company Name</div><input class="inp" id="pdfCompany" placeholder="Your Company"></div>
+        <div class="field"><div class="field-label">Email</div><input class="inp" id="pdfEmail" placeholder="you@company.com"></div>
+        <div class="field"><div class="field-label">Phone</div><input class="inp" id="pdfPhone" placeholder="(214) 555-0100"></div>
+        <div class="field"><div class="field-label">Prepared For (Client)</div><input class="inp" id="pdfClient" placeholder="General Contractor"></div>
+      </div>
+      <div class="field"><div class="field-label">Company Logo (optional)</div><input class="inp" id="pdfLogo" type="file" accept="image/*"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-fire btn-lg" style="flex:1" onclick="closePdfMeta();doGeneratePdf()">🖨️ Generate PDF</button>
+        <button class="btn btn-ghost btn-lg" onclick="closePdfMeta();currentPdfMeta={};doGeneratePdf()">Use Defaults</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+// ── IMPORTANT: Replace with your deployed Cloudflare Worker URL ──
+// After running `wrangler deploy`, paste your worker URL here.
+// Example: 'https://fireguard-tx-api.yoursubdomain.workers.dev'
+const DEFAULT_WORKER_URL = '';
+
+// ──────────────────────────────────────────────────────────────────
+// CURSOR
+// ──────────────────────────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+const trail  = document.getElementById('cursor-trail');
+let mx = 0, my = 0, tx = 0, ty = 0;
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function animCursor() {
+  tx += (mx - tx) * 0.18;
+  ty += (my - ty) * 0.18;
+  cursor.style.transform = `translate(${mx}px,${my}px)`;
+  trail.style.transform  = `translate(${tx}px,${ty}px)`;
+  requestAnimationFrame(animCursor);
+})();
+
+// ──────────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────────
+const state = { projects: JSON.parse(localStorage.getItem('fg_projects') || '[]') };
+let currentEstimate = null;
+let currentPdfMeta  = {};
+let analyzerFiles   = [];
+let lastAnalysisResult = null;
+
+// ──────────────────────────────────────────────────────────────────
+// UTILS
+// ──────────────────────────────────────────────────────────────────
+const money = n => '$' + Math.round(Number(n || 0)).toLocaleString();
+const num   = n => Math.round(Number(n || 0)).toLocaleString();
+const esc   = s => String(s || '').replace(/[&<>"]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
+const save  = () => localStorage.setItem('fg_projects', JSON.stringify(state.projects));
+
+function toast(msg, type = 'fire') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(() => el.style.opacity = '0', 2700);
+  setTimeout(() => el.remove(), 3100);
+}
+
+function readFile(f) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(f);
+  });
+}
+
+function getWorkerUrl() {
+  return document.getElementById('workerUrl')?.value?.trim() ||
+         localStorage.getItem('fg_worker_url') ||
+         DEFAULT_WORKER_URL;
+}
+
+function saveWorkerUrl() {
+  const v = document.getElementById('workerUrl').value.trim();
+  localStorage.setItem('fg_worker_url', v);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// LOADER
+// ──────────────────────────────────────────────────────────────────
+const loaderMsgs = [
+  'Initializing workspace…',
+  'Loading pricing database…',
+  'Calibrating Dallas rates…',
+  'Connecting formula engine…',
+  'System ready.'
+];
+let lmi = 0;
+const lsi = setInterval(() => {
+  if (lmi < loaderMsgs.length - 1) {
+    document.getElementById('loaderStatus').textContent = loaderMsgs[++lmi];
+  } else {
+    clearInterval(lsi);
+  }
+}, 280);
+
+window.addEventListener('load', () => {
+  renderStats();
+  renderProjectsArea();
+  // Load saved worker URL
+  const saved = localStorage.getItem('fg_worker_url');
+  if (saved && document.getElementById('workerUrl')) {
+    document.getElementById('workerUrl').value = saved;
+  }
+  setTimeout(() => document.getElementById('loader').classList.add('out'), 1600);
+});
+
+// ──────────────────────────────────────────────────────────────────
+// STATS
+// ──────────────────────────────────────────────────────────────────
+function renderStats() {
+  document.getElementById('statProjects').textContent = state.projects.length;
+  const heads = Math.round(state.projects.reduce((a, p) => a + (Number(p.sh) || 0), 0));
+  document.getElementById('statHeads').textContent = heads.toLocaleString();
+  const vol = state.projects.reduce((a, p) => a + (Number(p.final) || 0), 0);
+  document.getElementById('statVolume').textContent = vol > 0 ? '$' + Math.round(vol / 1000) + 'k' : '$0';
+  const last = state.projects[0]?.name || '—';
+  document.getElementById('statLast').textContent = last.length > 9 ? last.substring(0, 9) + '…' : last;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SAVED LIST (homepage)
+// ──────────────────────────────────────────────────────────────────
+function renderProjectsArea() {
+  const area = document.getElementById('projectsArea');
+  if (!state.projects.length) {
+    area.innerHTML = `<div class="empty-state"><div class="empty-state-title">NO ESTIMATES YET</div><div class="empty-state-sub">Create your first estimate using Quick Estimate above.</div></div>`;
+    return;
+  }
+  const rows = state.projects.slice(0, 6).map((p, i) => `
+    <div class="saved-row">
+      <div>
+        <div class="saved-name">${esc(p.name)}</div>
+        <div class="saved-meta">${esc(p.date)} · ${esc(p.address || 'TX')} · ${esc(p.building || '')}</div>
+      </div>
+      <div><span class="saved-tag">${esc(p.tag || 'Estimate')}</span></div>
+      <div class="saved-val">${num(Math.round(p.sh || 0))} SH</div>
+      <div class="saved-val">${money(p.final)}</div>
+      <div><button class="btn btn-ghost btn-sm" onclick="openSavedProject(${i})">Open →</button></div>
+    </div>
+  `).join('');
+
+  area.innerHTML = `
+    <div class="saved-table">
+      <div class="saved-table-header">
+        <span>Project</span><span>Tag</span><span>Heads</span><span>Total</span><span></span>
+      </div>
+      ${rows}
+    </div>
+  `;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// ESTIMATE MODAL
+// ──────────────────────────────────────────────────────────────────
+function openEstimate() {
+  document.getElementById('estimateOverlay').classList.add('open');
+  initFloors();
+  recalc();
+}
+function closeEstimate() {
+  document.getElementById('estimateOverlay').classList.remove('open');
+}
+
+function initFloors() {
+  const n = Math.max(1, parseInt(document.getElementById('numFloors').value) || 1);
+  const wrap = document.getElementById('floorsWrap');
+  const existing = [...wrap.querySelectorAll('.floorSqFt')].map(i => i.value);
+  wrap.innerHTML = '';
+  for (let i = 1; i <= n; i++) {
+    const div = document.createElement('div');
+    div.className = 'g2';
+    const def = existing[i - 1] || (i === 1 ? 20000 : 15000);
+    div.innerHTML = `
+      <div class="field">
+        <div class="field-label">Floor ${i} — Sq Ft</div>
+        <input class="inp mono floorSqFt" type="number" value="${def}" oninput="recalc()" style="font-weight:700">
+      </div>
+      <div class="field">
+        <div class="field-label">Floor ${i} — Notes</div>
+        <input class="inp" placeholder="Optional">
+      </div>
+    `;
+    wrap.appendChild(div);
+  }
+  recalc();
+}
+
+function getLocation() {
+  const a = (document.getElementById('projectAddress').value || '').toLowerCase();
+  if (!a || a.length < 2) return 'Unknown';
+  if (a.includes('dallas')) return 'Dallas';
+  const outside = ['fort worth','frisco','plano','mckinney','garland','irving','arlington',
+    'mesquite','richardson','carrollton','lewisville','allen','denton','tx','texas'];
+  if (outside.some(w => a.includes(w))) return 'Outside Dallas';
+  return 'Outside Dallas'; // Texas default
+}
+
+function recalc() {
+  const type   = document.getElementById('projectType').value;
+  const system = document.getElementById('systemType').value;
+  const floors = [...document.querySelectorAll('.floorSqFt')].map(i => Number(i.value) || 0);
+  const autoSqFt = floors.reduce((a, b) => a + b, 0);
+  const manualSqFt = Number(document.getElementById('totalSqFt').value) || 0;
+  const totalSqFt = manualSqFt > 0 ? manualSqFt : autoSqFt;
+  if (manualSqFt === 0 && autoSqFt > 0) document.getElementById('totalSqFt').value = autoSqFt;
+
+  const shAuto = totalSqFt / 95;
+  const shOvr  = document.getElementById('overrideSh').value;
+  const sh     = shOvr !== '' ? Number(shOvr) : shAuto;
+  document.getElementById('sprinklerHeads').value = sh.toFixed(2);
+
+  const location = getLocation();
+  document.getElementById('locationBadge').textContent = '📍 ' + location;
+
+  // Material
+  let matRate = system === 'dry' ? 180 : (location === 'Dallas' ? 105 : 150);
+  let material = sh * matRate;
+
+  // Labor
+  let labor = sh * 32;
+
+  // Design
+  let design = Math.max(sh * 11, 1000);
+
+  // Misc
+  const hasFirePump = document.getElementById('hasFirePump').checked;
+  const hasDryAddon = document.getElementById('hasDryAddon').checked;
+  const hasBackflow = document.getElementById('hasBackflow').checked;
+  let misc = 5000 + (hasFirePump ? 10000 : 0) + (hasDryAddon ? 14000 : 0) + (hasBackflow ? 5000 : 0);
+
+  // Apply overrides
+  if (document.getElementById('overrideMaterial').value !== '') material = Number(document.getElementById('overrideMaterial').value);
+  if (document.getElementById('overrideLabor').value !== '')   labor    = Number(document.getElementById('overrideLabor').value);
+  if (document.getElementById('overrideDesign').value !== '')  design   = Number(document.getElementById('overrideDesign').value);
+  if (document.getElementById('overrideMisc').value !== '')    misc     = Number(document.getElementById('overrideMisc').value);
+
+  const subtotal  = material + labor + design + misc;
+  const taxRate   = Number(document.getElementById('overrideTaxRate').value || 8.25) / 100;
+  const profitPct = Number(document.getElementById('overrideProfitPct').value || 20) / 100;
+  const taxExempt = document.getElementById('taxExempt').checked;
+  const taxes  = taxExempt ? 0 : (material + misc) * taxRate;
+  const profit = subtotal * profitPct;
+
+  let finalRaw;
+  if (type === 'existing') {
+    finalRaw = sh <= 50 ? sh * 300 : sh <= 150 ? sh * 150 : sh * 100;
+  } else {
+    finalRaw = subtotal + taxes + profit;
+  }
+
+  const rm = document.getElementById('roundingMethod').value;
+  let final = rm === 'ceil' ? Math.ceil(finalRaw) : rm === 'round' ? Math.round(finalRaw) : finalRaw;
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('materialVal',   money(material));
+  set('laborVal',      money(labor));
+  set('designVal',     money(design));
+  set('miscVal',       money(misc));
+  set('subtotalVal',   money(subtotal));
+  set('taxVal',        money(taxes));
+  set('profitVal',     money(profit));
+  set('finalVal',      money(final));
+
+  const matLabel = system === 'dry' ? 'Dry Rate' : location;
+  set('materialFormula', `${sh.toFixed(1)} SH × $${matRate} (${matLabel})`);
+  set('laborFormula',    `${sh.toFixed(1)} SH × $32`);
+  set('designFormula',   `${sh.toFixed(1)} SH × $11${design === 1000 ? ' → Min $1,000' : ''}`);
+  const mp = ['Base $5,000'];
+  if (hasFirePump)  mp.push('+ Fire Pump $10k');
+  if (hasDryAddon)  mp.push('+ Dry Add-on $14k');
+  if (hasBackflow)  mp.push('+ Backflow $5k');
+  set('miscFormula',   mp.join(' · '));
+  set('taxFormula',    taxExempt ? 'Tax Exempt' : `(Mat + Misc) × ${(taxRate * 100).toFixed(2)}%`);
+  set('profitFormula', `Subtotal × ${(profitPct * 100).toFixed(0)}%`);
+  set('finalFormula',  type === 'existing' ? `Existing tier: ${sh.toFixed(0)} SH × $${sh <= 50 ? 300 : sh <= 150 ? 150 : 100}` : 'Subtotal + Taxes + Profit');
+
+  currentEstimate = {
+    type, system, totalSqFt, sh, material, labor, design, misc,
+    subtotal, taxes, profit, final, location, matRate, taxRate, profitPct, taxExempt,
+    hasFirePump, hasDryAddon, hasBackflow,
+    name:     document.getElementById('projectName').value || 'Untitled',
+    address:  document.getElementById('projectAddress').value || '',
+    building: document.getElementById('buildingType').value || '',
+    floors, numFloors: floors.length
+  };
+}
+
+function clearEstimate() {
+  ['projectName','projectAddress','notes','saveName','saveTag'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('numFloors').value = 1;
+  ['projectType','buildingType','systemType'].forEach(id => document.getElementById(id).selectedIndex = 0);
+  ['hasBackflow','hasFirePump','hasDryAddon','taxExempt'].forEach(id => document.getElementById(id).checked = false);
+  ['overrideSh','overrideMaterial','overrideLabor','overrideDesign','overrideMisc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('overrideProfitPct').value = 20;
+  document.getElementById('overrideTaxRate').value   = 8.25;
+  document.getElementById('totalSqFt').value         = 0;
+  document.getElementById('roundingMethod').value    = 'round';
+  initFloors();
+}
+
+function saveCurrentEstimate() {
+  if (!currentEstimate) recalc();
+  const name = (document.getElementById('saveName').value || document.getElementById('projectName').value || 'Untitled').trim();
+  const tag  = (document.getElementById('saveTag').value || (currentEstimate.type === 'existing' ? 'Existing' : 'New')).trim();
+  const entry = {
+    ...currentEstimate, name, tag,
+    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    notes: document.getElementById('notes').value || ''
+  };
+  state.projects.unshift(entry);
+  save();
+  renderStats();
+  renderProjectsArea();
+  toast('✅ Estimate saved!', 'green');
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SAVED MODAL
+// ──────────────────────────────────────────────────────────────────
+function openSaved() {
+  renderSavedModal();
+  document.getElementById('savedOverlay').classList.add('open');
+}
+function closeSaved() { document.getElementById('savedOverlay').classList.remove('open'); }
+
+function renderSavedModal() {
+  const box = document.getElementById('savedList');
+  if (!state.projects.length) {
+    box.innerHTML = `<div class="empty-state"><div class="empty-state-title">NONE YET</div></div>`;
+    return;
+  }
+  box.innerHTML = state.projects.map((p, i) => `
+    <div class="saved-row" style="display:flex;grid-template-columns:unset;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div class="saved-name">${esc(p.name)}</div>
+        <div class="saved-meta">${esc(p.date)} · ${esc(p.address || 'TX')} · ${esc(p.tag)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="saved-val">${money(p.final)}</div>
+        <button class="btn btn-ghost btn-sm" onclick="openSavedProject(${i});closeSaved()">Open →</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteSaved(${i})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openSavedProject(i) {
+  const p = state.projects[i];
+  if (!p) return;
+  openEstimate();
+  setTimeout(() => {
+    if (p.name)    document.getElementById('projectName').value = p.name;
+    if (p.address) document.getElementById('projectAddress').value = p.address;
+    document.getElementById('projectType').value  = p.type || 'new';
+    document.getElementById('buildingType').value = p.building || 'Retail / Commercial';
+    document.getElementById('systemType').value   = p.system || 'wet';
+    document.getElementById('hasBackflow').checked = !!p.hasBackflow;
+    document.getElementById('hasFirePump').checked = !!p.hasFirePump;
+    document.getElementById('hasDryAddon').checked = !!p.hasDryAddon;
+    document.getElementById('taxExempt').checked   = !!p.taxExempt;
+    document.getElementById('overrideProfitPct').value = p.profitPct ? (p.profitPct * 100).toFixed(2) : 20;
+    document.getElementById('overrideTaxRate').value   = p.taxRate   ? (p.taxRate * 100).toFixed(2)   : 8.25;
+    document.getElementById('notes').value         = p.notes || '';
+    document.getElementById('totalSqFt').value     = p.totalSqFt || 0;
+    document.getElementById('numFloors').value     = (p.floors && p.floors.length) || p.numFloors || 1;
+    initFloors();
+    if (p.floors && p.floors.length) {
+      const inputs = document.querySelectorAll('.floorSqFt');
+      p.floors.forEach((v, j) => { if (inputs[j]) inputs[j].value = v; });
+    }
+    recalc();
+  }, 80);
+}
+
+function deleteSaved(i) {
+  if (!confirm('Delete this estimate?')) return;
+  state.projects.splice(i, 1);
+  save();
+  renderStats();
+  renderProjectsArea();
+  renderSavedModal();
+  toast('Deleted.', 'fire');
+}
+
+// ──────────────────────────────────────────────────────────────────
+// PDF GENERATION (Estimate)
+// ──────────────────────────────────────────────────────────────────
+function showPdfMeta() {
+  document.getElementById('pdfMetaOverlay').classList.add('open');
+}
+function closePdfMeta() {
+  document.getElementById('pdfMetaOverlay').classList.remove('open');
+}
+
+async function doGeneratePdf() {
+  currentPdfMeta = {
+    company: document.getElementById('pdfCompany').value,
+    email:   document.getElementById('pdfEmail').value,
+    phone:   document.getElementById('pdfPhone').value,
+    client:  document.getElementById('pdfClient').value,
+    logo:    document.getElementById('pdfLogo').files[0] || null
+  };
+  await generateEstimatePdf();
+}
+
+async function generateEstimatePdf() {
+  if (!window.jspdf?.jsPDF) { alert('PDF library not loaded.'); return; }
+  if (!currentEstimate) recalc();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const c = currentEstimate;
+  const meta = currentPdfMeta || {};
+  const W = 612, pad = 40;
+
+  // Header
+  doc.setFillColor(15, 15, 15);
+  doc.rect(0, 0, W, 100, 'F');
+  doc.setFillColor(255, 78, 0);
+  doc.rect(0, 92, W, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24); doc.setFont('helvetica', 'bold');
+  doc.text(meta.company || 'FireGuard TX', pad, 36);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(180, 180, 180);
+  doc.text('Fire Sprinkler Estimator · Texas', pad, 52);
+  if (meta.email || meta.phone) doc.text([meta.email, meta.phone].filter(Boolean).join('  ·  '), pad, 66);
+  doc.text(meta.client ? `Prepared for: ${meta.client}` : 'Prepared for: General Contractor', W - pad, 66, { align: 'right' });
+
+  if (meta.logo instanceof File) {
+    try { const d = await readFile(meta.logo); doc.addImage(d, 'PNG', W - 130, 12, 76, 48); } catch (e) {}
+  }
+
+  doc.setTextColor(20, 20, 20);
+
+  // Title block
+  doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+  doc.text('FIRE SPRINKLER PROJECT ESTIMATE', pad, 126);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(130, 130, 130);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, W - pad, 126, { align: 'right' });
+  doc.setTextColor(20, 20, 20);
+
+  // Two-col project info
+  let y = 150;
+  const infoRows = [
+    ['Project Name', c.name || 'Untitled'],
+    ['Address', c.address || 'Texas'],
+    ['Project Type', c.type === 'existing' ? 'Existing Construction / Renovation' : 'New Construction / Ground Up'],
+    ['Building Type', c.building || 'N/A'],
+    ['System Type', c.system === 'dry' ? 'Dry System' : 'Wet System'],
+    ['Location Logic', c.location],
+    ['Total Sq Ft', num(c.totalSqFt) + ' sq ft'],
+    ['Number of Floors', String(c.numFloors || 1)],
+    ['Sprinkler Heads (Est.)', c.sh.toFixed(2)],
+    ['Fire Pump', c.hasFirePump ? 'Yes (+$10,000)' : 'No'],
+    ['Backflow Prevention', c.hasBackflow ? 'Yes (+$5,000)' : 'No'],
+    ['Dry System Add-on', c.hasDryAddon ? 'Yes (+$14,000)' : 'No'],
+    ['Tax Exempt', c.taxExempt ? 'Yes' : 'No'],
+  ];
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.text('PROJECT INFORMATION', pad, y);
+  y += 14;
+
+  infoRows.forEach(([k, v], i) => {
+    const ry = y + i * 20;
+    if (i % 2 === 0) { doc.setFillColor(248, 248, 248); doc.rect(pad - 4, ry - 12, W - 2 * pad + 8, 18, 'F'); }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    doc.setTextColor(100, 100, 100); doc.text(k, pad, ry);
+    doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold');
+    doc.text(v, W / 2 + 10, ry);
+  });
+
+  // Cost breakdown
+  y = y + infoRows.length * 20 + 20;
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 20, 20);
+  doc.text('COST BREAKDOWN', pad, y);
+  y += 14;
+
+  const costRows = [
+    ['Material',     money(c.material),  `${c.sh.toFixed(1)} SH × $${c.matRate}`],
+    ['Labor',        money(c.labor),     `${c.sh.toFixed(1)} SH × $32`],
+    ['Design',       money(c.design),    `${c.sh.toFixed(1)} SH × $11 (min $1,000)`],
+    ['Misc',         money(c.misc),      'Base $5k + add-ons'],
+    ['Subtotal #1',  money(c.subtotal),  'Material + Labor + Design + Misc'],
+    ['Taxes',        money(c.taxes),     c.taxExempt ? 'Tax Exempt' : `(Mat + Misc) × ${(c.taxRate * 100).toFixed(2)}%`],
+    ['Profit (20%)', money(c.profit),    'Subtotal × 20%'],
+  ];
+  costRows.forEach(([k, v, f], i) => {
+    const ry = y + i * 22;
+    if (i % 2 === 0) { doc.setFillColor(252, 250, 248); doc.rect(pad - 4, ry - 13, W - 2 * pad + 8, 20, 'F'); }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(100, 100, 100);
+    doc.text(k, pad, ry);
+    doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold');
+    doc.text(v, W / 2 + 10, ry);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+    doc.text(f, W - pad, ry, { align: 'right' });
+  });
+
+  // Final total
+  const fy = y + costRows.length * 22 + 8;
+  doc.setFillColor(255, 78, 0);
+  doc.rect(pad - 4, fy - 15, W - 2 * pad + 8, 28, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+  doc.text('FINAL TOTAL COST', pad + 6, fy + 3);
+  doc.text(money(c.final), W - pad - 4, fy + 3, { align: 'right' });
+
+  // Notes section
+  const ny = fy + 36;
+  doc.setTextColor(80, 80, 80); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+  doc.text('FORMULA NOTES:', pad, ny);
+  doc.setFont('helvetica', 'normal');
+  const notes = [
+    `• SH = ${num(c.totalSqFt)} sq ft ÷ 95 = ${c.sh.toFixed(2)} heads`,
+    `• Material rate: $${c.matRate}/head (${c.system === 'dry' ? 'Dry system' : c.location + ' wet system'})`,
+    `• Labor: $32/head  ·  Design: $11/head (min $1,000)`,
+    c.type === 'existing' ? `• Existing Construction tier: ${c.sh.toFixed(0)} SH × $${c.sh <= 50 ? 300 : c.sh <= 150 ? 150 : 100}` : `• Final = Subtotal #1 + Taxes + 20% Profit`,
+  ];
+  notes.forEach((n, i) => doc.text(n, pad, ny + 14 + i * 12));
+
+  // Footer
+  doc.setDrawColor(200, 200, 200);
+  doc.line(pad, 760, W - pad, 760);
+  doc.setFontSize(8); doc.setTextColor(160, 160, 160);
+  doc.text(`${meta.company || 'FireGuard TX'} · ${meta.email || ''} · ${meta.phone || ''}`, pad, 772);
+  doc.text('Professional fire protection estimate · Texas', W - pad, 772, { align: 'right' });
+
+  doc.save((c.name || 'estimate').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-estimate.pdf');
+  toast('📄 PDF downloaded!', 'green');
+}
+
+// ──────────────────────────────────────────────────────────────────
+// ANALYZER
+// ──────────────────────────────────────────────────────────────────
+function openAnalyzer() {
+  const savedUrl = localStorage.getItem('fg_worker_url');
+  if (savedUrl) document.getElementById('workerUrl').value = savedUrl;
+  document.getElementById('analyzerOverlay').classList.add('open');
+}
+function closeAnalyzer() {
+  document.getElementById('analyzerOverlay').classList.remove('open');
+}
+
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('drag-over'); }
+function handleDragLeave() { document.getElementById('dropzone').classList.remove('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+}
+
+function handleFiles(files) {
+  analyzerFiles = [...files];
+  const block = document.getElementById('fileListBlock');
+  if (!analyzerFiles.length) { block.style.display = 'none'; return; }
+  block.style.display = 'block';
+  document.getElementById('fileItems').innerHTML = analyzerFiles.map(f => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+      <span>${f.type.includes('pdf') ? '📋' : '🖼️'}</span>
+      <div style="flex:1">
+        <div style="font-size:.85rem;font-weight:600">${esc(f.name)}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${(f.size / 1024).toFixed(1)} KB</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function clearFiles() {
+  analyzerFiles = [];
+  document.getElementById('fileListBlock').style.display  = 'none';
+  document.getElementById('analysisPanel').style.display  = 'none';
+  document.getElementById('analysisResult').style.display = 'none';
+  document.getElementById('planFiles').value = '';
+}
+
+const ANALYSIS_STEPS = [
+  'Upload received', 'Reading file metadata', 'Converting to base64',
+  'Sending to Gemini Vision AI', 'Extracting title block data', 'OCR text extraction',
+  'Detecting sheet types', 'Searching for square footage', 'Looking for sprinkler head counts',
+  'Identifying wet/dry system indicators', 'Scanning for backflow references',
+  'Scanning for fire pump references', 'Detecting dry system notes',
+  'Estimating floor count', 'Parsing building occupancy type',
+  'Cross-checking address and location', 'Building confidence map',
+  'Generating structured report', 'Calculating estimate', 'Finalizing report'
+];
+
+async function runAnalysis() {
+  if (!analyzerFiles.length) { toast('Please upload files first.', 'fire'); return; }
+  const workerUrl = getWorkerUrl();
+  if (!workerUrl) {
+    toast('⚠️ Set your Worker URL in the config box above.', 'fire');
+    return;
+  }
+
+  const panel  = document.getElementById('analysisPanel');
+  const result = document.getElementById('analysisResult');
+  panel.style.display  = 'block';
+  result.style.display = 'none';
+
+  const stepsWrap = document.getElementById('analysisSteps');
+  const bar    = document.getElementById('analysisBar');
+  const status = document.getElementById('analysisStatus');
+
+  function renderSteps(activeIdx) {
+    stepsWrap.innerHTML = ANALYSIS_STEPS.map((s, i) => `
+      <div class="step-item ${i < activeIdx ? 'done' : i === activeIdx ? 'active' : ''}">
+        <div class="step-dot"></div>
+        <div>
+          <div style="font-size:.83rem;font-weight:600">${s}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${i < activeIdx ? 'Complete' : i === activeIdx ? 'Running…' : 'Pending'}</div>
+        </div>
+      </div>
+    `).join('');
+    bar.style.width = `${((activeIdx + 1) / ANALYSIS_STEPS.length) * 100}%`;
+    status.textContent = ANALYSIS_STEPS[activeIdx];
+  }
+
+  let stepIdx = 0;
+  const interval = setInterval(() => {
+    if (stepIdx < ANALYSIS_STEPS.length - 3) {
+      renderSteps(stepIdx++);
+    }
+  }, 280);
+
+  try {
+    const file = analyzerFiles[0];
+    const b64  = await readFile(file);
+    const base64Data = b64.split(',')[1];
+    const mimeType   = file.type || 'image/jpeg';
+
+    const prompt = `You are an expert fire protection engineer analyzing fire sprinkler protection plans. Analyze this document and extract all available information. Return ONLY a valid JSON object — no markdown, no backticks, no preamble. Use null for any field you cannot determine.
+
+{
+  "project_name": string or null,
+  "address": string or null,
+  "city_state": string or null,
+  "building_type": string (Office/Retail/School/Medical/Warehouse/Restaurant/Multifamily/Hotel/Industrial/Mixed Use/Other) or null,
+  "occupancy_classification": string or null,
+  "total_sqft": number or null,
+  "sqft_confidence": "High" or "Medium" or "Low",
+  "floors": number or null,
+  "sqft_per_floor": array of numbers or null,
+  "sprinkler_head_count": number or null,
+  "head_count_confidence": "High" or "Medium" or "Low",
+  "sprinkler_head_types": array of strings or null,
+  "system_type": "Wet" or "Dry" or "Both" or "Unknown",
+  "system_confidence": "High" or "Medium" or "Low",
+  "has_fire_pump": true or false or null,
+  "fire_pump_confidence": "High" or "Medium" or "Low",
+  "has_backflow": true or false or null,
+  "backflow_confidence": "High" or "Medium" or "Low",
+  "has_dry_system_addon": true or false or null,
+  "dry_addon_confidence": "High" or "Medium" or "Low",
+  "is_dallas": true or false or null,
+  "location_confidence": "High" or "Medium" or "Low",
+  "project_type": "New Construction" or "Renovation" or "Existing" or "Unknown",
+  "contractor": string or null,
+  "engineer": string or null,
+  "permit_number": string or null,
+  "notes": string or null,
+  "additional_findings": array of strings
+}`;
+
+    // Call the Cloudflare Worker (which holds the API key)
+    const resp = await fetch(workerUrl + '/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parts: [
+          { inline_data: { mime_type: mimeType, data: base64Data } },
+          { text: prompt }
+        ]
+      })
+    });
+
+    const data = await resp.json();
+    clearInterval(interval);
+
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+    const raw   = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const ai    = JSON.parse(clean);
+
+    // Finish animation
+    renderSteps(ANALYSIS_STEPS.length - 1);
+    status.textContent = 'Complete';
+    status.className   = 'badge badge-green';
+
+    displayAnalysisResults(ai);
+    lastAnalysisResult = ai;
+
+  } catch (err) {
+    clearInterval(interval);
+    status.textContent = 'Error';
+    status.className   = 'badge badge-red';
+    console.error(err);
+    toast('AI error: ' + err.message.substring(0, 80), 'fire');
+  }
+}
+
+function confBadge(c) {
+  if (!c) return '<span class="badge badge-steel">Unknown</span>';
+  const map = { High: 'badge-green', Medium: 'badge-yellow', Low: 'badge-red' };
+  return `<span class="badge ${map[c] || 'badge-steel'}">${c}</span>`;
+}
+
+function displayAnalysisResults(ai) {
+  document.getElementById('analysisResult').style.display = 'block';
+
+  const findings = [
+    ['Project Name',       ai.project_name, null],
+    ['Address',            ai.address || ai.city_state, ai.location_confidence],
+    ['Dallas Area?',       ai.is_dallas === true ? '✓ Yes (Dallas rate)' : ai.is_dallas === false ? '✗ No (Outside Dallas)' : 'Unknown', ai.location_confidence],
+    ['Building Type',      ai.building_type, null],
+    ['Occupancy',          ai.occupancy_classification, null],
+    ['Project Type',       ai.project_type, null],
+    ['System Type',        ai.system_type, ai.system_confidence],
+    ['Total Sq Ft',        ai.total_sqft ? num(ai.total_sqft) + ' sq ft' : null, ai.sqft_confidence],
+    ['Floors',             ai.floors ? ai.floors + ' floor(s)' : null, null],
+    ['Sq Ft / Floor',      ai.sqft_per_floor?.join(' / '), null],
+    ['Sprinkler Heads',    ai.sprinkler_head_count ? num(ai.sprinkler_head_count) : null, ai.head_count_confidence],
+    ['Head Types',         ai.sprinkler_head_types?.join(', '), null],
+    ['Fire Pump',          ai.has_fire_pump == null ? null : ai.has_fire_pump ? '✓ Present' : '✗ Not Present', ai.fire_pump_confidence],
+    ['Backflow',           ai.has_backflow == null ? null : ai.has_backflow ? '✓ Present' : '✗ Not Present', ai.backflow_confidence],
+    ['Dry System Add-on',  ai.has_dry_system_addon == null ? null : ai.has_dry_system_addon ? '✓ Present' : '✗ Not Present', ai.dry_addon_confidence],
+    ['Engineer',           ai.engineer, null],
+    ['Contractor',         ai.contractor, null],
+    ['Permit #',           ai.permit_number, null],
+  ];
+
+  document.getElementById('findingsList').innerHTML = findings.map(([k, v, c]) => `
+    <div class="finding-row">
+      <span class="finding-key">${k}</span>
+      <span class="finding-val">${v || '<span style="color:var(--muted)">—</span>'}${c ? ' ' + confBadge(c) : ''}</span>
+    </div>
+  `).join('');
+
+  // Auto estimate
+  const sqft = ai.total_sqft || 0;
+  if (sqft > 0 || ai.sprinkler_head_count) {
+    const sh     = ai.sprinkler_head_count || sqft / 95;
+    const isDal  = ai.is_dallas === true;
+    const isDry  = ai.system_type === 'Dry';
+    const isEx   = ai.project_type === 'Existing' || ai.project_type === 'Renovation';
+    const mRate  = isDry ? 180 : isDal ? 105 : 150;
+    const mat    = sh * mRate;
+    const lab    = sh * 32;
+    const des    = Math.max(sh * 11, 1000);
+    const mis    = 5000 + (ai.has_fire_pump ? 10000 : 0) + (ai.has_dry_system_addon ? 14000 : 0) + (ai.has_backflow ? 5000 : 0);
+    const sub    = mat + lab + des + mis;
+    const tax    = sub * 0.0825;
+    const profit = sub * 0.2;
+    const final  = isEx ? (sh <= 50 ? sh * 300 : sh <= 150 ? sh * 150 : sh * 100) : sub + tax + profit;
+
+    document.getElementById('autoEstimate').innerHTML = [
+      ['Sprinkler Heads', sh.toFixed(0), sqft ? num(sqft) + ' ÷ 95' : 'From plans'],
+      ['Material', money(mat), `${sh.toFixed(0)} × $${mRate}`],
+      ['Labor', money(lab), `${sh.toFixed(0)} × $32`],
+      ['Design', money(des), 'min $1,000'],
+      ['Misc', money(mis), 'Base + add-ons'],
+      ['Subtotal', money(sub), ''],
+      ['Taxes', money(tax), '8.25%'],
+      ['Profit', money(profit), '20%'],
+      ['FINAL', money(final), isEx ? 'Existing tier' : 'Subtotal + Tax + 20%'],
+    ].map(([k, v, f], i) => `
+      <div class="cost-row${i === 8 ? ' total' : ''}">
+        <div><div class="cost-label">${k}</div>${f ? `<div class="cost-formula">${f}</div>` : ''}</div>
+        <div class="cost-value">${v}</div>
+      </div>
+    `).join('');
+
+    lastAnalysisResult = { ...ai, _calc: { sh, mat, lab, des, mis, sub, tax, profit, final, mRate, isEx } };
+  } else {
+    document.getElementById('autoEstimate').innerHTML = `<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px">Square footage not detected — use the Quick Estimator with manual input.</div>`;
+  }
+}
+
+function sendToEstimator() {
+  if (!lastAnalysisResult) return;
+  const ai = lastAnalysisResult;
+  closeAnalyzer();
+  openEstimate();
+  setTimeout(() => {
+    if (ai.project_name)   document.getElementById('projectName').value   = ai.project_name;
+    if (ai.address || ai.city_state) document.getElementById('projectAddress').value = ai.address || ai.city_state;
+    if (ai.project_type === 'Existing' || ai.project_type === 'Renovation') document.getElementById('projectType').value = 'existing';
+    if (ai.system_type === 'Dry') document.getElementById('systemType').value = 'dry';
+    document.getElementById('hasFirePump').checked  = !!ai.has_fire_pump;
+    document.getElementById('hasBackflow').checked  = !!ai.has_backflow;
+    document.getElementById('hasDryAddon').checked  = !!ai.has_dry_system_addon;
+    if (ai.floors) document.getElementById('numFloors').value = ai.floors;
+    if (ai.total_sqft) document.getElementById('totalSqFt').value = ai.total_sqft;
+    if (ai.sprinkler_head_count) document.getElementById('overrideSh').value = ai.sprinkler_head_count;
+    initFloors();
+    recalc();
+    toast('✅ Pre-filled from AI analysis!', 'green');
+  }, 120);
+}
+
+async function printAnalysisPdf() {
+  if (!lastAnalysisResult) { toast('No analysis yet.', 'fire'); return; }
+  if (!window.jspdf?.jsPDF) { alert('PDF library not loaded.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const ai = lastAnalysisResult;
+  const W = 612, pad = 40;
+
+  doc.setFillColor(15, 15, 15);
+  doc.rect(0, 0, W, 90, 'F');
+  doc.setFillColor(255, 78, 0);
+  doc.rect(0, 82, W, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.text('FIREGUARD TX — AI PLAN ANALYSIS REPORT', pad, 34);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(180, 180, 180);
+  doc.text('Powered by Google Gemini Vision · Texas', pad, 50);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, W - pad, 50, { align: 'right' });
+  doc.text(ai.project_name || 'Unnamed Project', pad, 66);
+
+  doc.setTextColor(20, 20, 20);
+  let y = 112;
+
+  const infoBlock = [
+    ['Project Name', ai.project_name],
+    ['Address', ai.address || ai.city_state],
+    ['Building Type', ai.building_type],
+    ['Occupancy', ai.occupancy_classification],
+    ['Project Type', ai.project_type],
+    ['System Type', ai.system_type],
+    ['Total Sq Ft', ai.total_sqft ? num(ai.total_sqft) + ' sq ft' : null],
+    ['Floors', ai.floors ? String(ai.floors) : null],
+    ['Sprinkler Heads', ai.sprinkler_head_count ? num(ai.sprinkler_head_count) : null],
+    ['Head Types', ai.sprinkler_head_types?.join(', ')],
+    ['Fire Pump', ai.has_fire_pump == null ? 'Unknown' : ai.has_fire_pump ? 'Present' : 'Not Present'],
+    ['Backflow', ai.has_backflow == null ? 'Unknown' : ai.has_backflow ? 'Present' : 'Not Present'],
+    ['Dry System', ai.has_dry_system_addon == null ? 'Unknown' : ai.has_dry_system_addon ? 'Present' : 'Not Present'],
+    ['Dallas Area', ai.is_dallas == null ? 'Unknown' : ai.is_dallas ? 'Yes (Dallas rate)' : 'No (Outside Dallas)'],
+    ['Engineer', ai.engineer],
+    ['Contractor', ai.contractor],
+    ['Permit #', ai.permit_number],
+  ];
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.text('PLAN ANALYSIS FINDINGS', pad, y); y += 14;
+
+  infoBlock.forEach(([k, v], i) => {
+    const ry = y + i * 20;
+    if (i % 2 === 0) { doc.setFillColor(248, 248, 248); doc.rect(pad - 4, ry - 12, W - 2 * pad + 8, 18, 'F'); }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(100, 100, 100);
+    doc.text(k, pad, ry);
+    doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold');
+    doc.text(String(v || 'Not found'), W / 2 + 10, ry);
+  });
+
+  y = y + infoBlock.length * 20 + 18;
+
+  if (ai._calc) {
+    const c = ai._calc;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+    doc.text('AUTO-GENERATED ESTIMATE', pad, y); y += 14;
+    [
+      ['Sprinkler Heads', c.sh.toFixed(2)],
+      ['Material', money(c.mat)],
+      ['Labor', money(c.lab)],
+      ['Design', money(c.des)],
+      ['Misc', money(c.mis)],
+      ['Subtotal', money(c.sub)],
+      ['Taxes', money(c.tax)],
+      ['Profit (20%)', money(c.profit)],
+    ].forEach(([k, v], i) => {
+      const ry = y + i * 20;
+      if (i % 2 === 0) { doc.setFillColor(252, 250, 248); doc.rect(pad - 4, ry - 12, W - 2 * pad + 8, 18, 'F'); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(100, 100, 100);
+      doc.text(k, pad, ry);
+      doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold');
+      doc.text(v, W / 2 + 10, ry);
+    });
+    const fy = y + 8 * 20 + 6;
+    doc.setFillColor(255, 78, 0); doc.rect(pad - 4, fy - 14, W - 2 * pad + 8, 26, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text('FINAL TOTAL COST', pad + 6, fy + 1);
+    doc.text(money(c.final), W - pad - 4, fy + 1, { align: 'right' });
+  }
+
+  if (ai.notes) {
+    y = 700;
+    doc.setTextColor(80, 80, 80); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text('AI NOTES:', pad, y);
+    doc.setFont('helvetica', 'normal');
+    doc.splitTextToSize(ai.notes, W - 2 * pad).forEach((l, i) => doc.text(l, pad, y + 12 + i * 12));
+  }
+
+  doc.setDrawColor(200, 200, 200);
+  doc.line(pad, 760, W - pad, 760);
+  doc.setFontSize(8); doc.setTextColor(160, 160, 160);
+  doc.text('FireGuard TX · AI Plan Analysis Report · Texas', pad, 772);
+  doc.text('Powered by Google Gemini Vision', W - pad, 772, { align: 'right' });
+
+  const fname = (ai.project_name || 'analysis').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  doc.save(fname + '-analysis.pdf');
+  toast('📄 Analysis PDF downloaded!', 'green');
+}
+
+// ── ESC to close ──
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  ['estimateOverlay','analyzerOverlay','savedOverlay','pdfMetaOverlay'].forEach(id => {
+    document.getElementById(id)?.classList.remove('open');
+  });
+});
+</script>
+</body>
+</html>
